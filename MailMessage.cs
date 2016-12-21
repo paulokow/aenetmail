@@ -108,7 +108,8 @@ namespace AE.Net.Mail {
 				string boundary = Headers.GetBoundary();
 				if (!string.IsNullOrEmpty(boundary)) {
 					var atts = new List<Attachment>();
-					var body = ParseMime(reader, boundary, ref maxLength, atts, Encoding, termChar);
+					string data = null;
+					var body = ParseMime(reader, boundary, ref maxLength, atts, Encoding, termChar, ref data, null);
 					if (!string.IsNullOrEmpty(body))
 						SetBody(body);
 
@@ -151,12 +152,12 @@ namespace AE.Net.Mail {
 			Subject = Headers["Subject"].RawValue;
 		}
 
-		private static string ParseMime(Stream reader, string boundary, ref int maxLength, ICollection<Attachment> attachments, Encoding encoding, char? termChar) {
+		private static string ParseMime(Stream reader, string boundary, ref int maxLength, ICollection<Attachment> attachments, Encoding encoding, char? termChar, ref string data, string parentBoundary) {
 			var maxLengthSpecified = maxLength > 0;
-			string data = null,
-					bounderInner = "--" + boundary,
-					bounderOuter = bounderInner + "--";
+			var bounderInner = "--" + boundary;
+			var bounderOuter = bounderInner + "--";
 			var n = 0;
+			//var content = reader.ReadToEnd(maxLength, encoding);
 			var body = new System.Text.StringBuilder();
 			do {
 				if (maxLengthSpecified && maxLength <= 0)
@@ -166,9 +167,16 @@ namespace AE.Net.Mail {
 				}
 				data = reader.ReadLine(ref maxLength, encoding, termChar);
 				n++;
-			} while (data != null && !data.StartsWith(bounderInner));
+			} while (data != null 
+			         && !data.StartsWith(bounderInner)
+			         && !(!string.IsNullOrEmpty(parentBoundary)
+			              && data.StartsWith(parentBoundary)));
 
-			while (data != null && !data.StartsWith(bounderOuter) && !(maxLengthSpecified && maxLength == 0)) {
+			while (data != null 
+			       && !data.StartsWith(bounderOuter) 
+			       && !(maxLengthSpecified && maxLength == 0)
+			       && !(!string.IsNullOrEmpty(parentBoundary)
+			              && data.StartsWith(parentBoundary))) {
 				data = reader.ReadLine(ref maxLength, encoding, termChar);
 				if (data == null) break;
 				var a = new Attachment { Encoding = encoding };
@@ -186,7 +194,7 @@ namespace AE.Net.Mail {
 				// check for nested part
 				var nestedboundary = a.Headers.GetBoundary();
 				if (!string.IsNullOrEmpty(nestedboundary)) {
-					ParseMime(reader, nestedboundary, ref maxLength, attachments, encoding, termChar);
+					ParseMime(reader, nestedboundary, ref maxLength, attachments, encoding, termChar, ref data, bounderInner);
 					while (!data.StartsWith(bounderInner) && !(maxLengthSpecified && maxLength == 0))
 						data = reader.ReadLine(ref maxLength, encoding, termChar);
 				} else {
