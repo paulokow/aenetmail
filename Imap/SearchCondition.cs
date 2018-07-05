@@ -152,7 +152,7 @@ namespace AE.Net.Mail
         {
             condition = condition.ToUpper();
 
-            if (left.Operator != condition)
+            if (left.Operator != condition || condition.Equals("OR"))
             {
                 left = new SearchCondition { Operator = condition, Conditions = new List<SearchCondition> { left } };
             }
